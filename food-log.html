@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Food Log</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #fafafa;
+      --card: #ffffff;
+      --border: #e2e2e2;
+      --text: #1a1a1a;
+      --muted: #777;
+      --accent: #2f6f4f;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #17181a;
+        --card: #232427;
+        --border: #34363a;
+        --text: #eee;
+        --muted: #999;
+        --accent: #6fbf94;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 24px 16px 80px;
+    }
+    .wrap { max-width: 720px; margin: 0 auto; }
+    h1 { font-size: 1.6rem; margin-bottom: 4px; }
+    .sub { color: var(--muted); margin-bottom: 24px; font-size: 0.9rem; }
+
+    #authBar {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 16px;
+      font-size: 0.85rem;
+    }
+    #authBar button, #authBar input {
+      font-size: 0.85rem;
+      padding: 6px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--text);
+    }
+    #authBar button { cursor: pointer; }
+    #authBar button:hover { border-color: var(--accent); }
+
+    details.day {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      margin-bottom: 12px;
+      overflow: hidden;
+    }
+    details.day > summary {
+      list-style: none;
+      cursor: pointer;
+      padding: 14px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 600;
+    }
+    details.day > summary::-webkit-details-marker { display: none; }
+    details.day > summary .arrow {
+      transition: transform 0.15s ease;
+      color: var(--muted);
+      font-weight: 400;
+    }
+    details.day[open] > summary .arrow { transform: rotate(90deg); }
+    .day-meta { color: var(--muted); font-weight: 400; font-size: 0.8rem; }
+
+    .meals {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      padding: 0 16px 16px;
+    }
+    @media (max-width: 480px) {
+      .meals { grid-template-columns: 1fr; }
+    }
+    .meal {
+      border: 1px dashed var(--border);
+      border-radius: 8px;
+      padding: 10px;
+      text-align: center;
+    }
+    .meal h4 {
+      margin: 0 0 8px;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+    }
+    .meal img {
+      width: 100%;
+      aspect-ratio: 1;
+      object-fit: cover;
+      border-radius: 6px;
+      display: block;
+      cursor: pointer;
+    }
+    .meal .placeholder {
+      aspect-ratio: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--muted);
+      font-size: 0.8rem;
+      border-radius: 6px;
+      background: color-mix(in srgb, var(--border) 40%, transparent);
+    }
+    .meal label.upload-btn {
+      display: inline-block;
+      margin-top: 8px;
+      font-size: 0.75rem;
+      padding: 5px 10px;
+      border-radius: 6px;
+      background: var(--accent);
+      color: #fff;
+      cursor: pointer;
+    }
+    .meal input[type="file"] { display: none; }
+    .meal .status { font-size: 0.7rem; color: var(--muted); margin-top: 4px; }
+
+    #lightbox {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.85);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 999;
+      padding: 24px;
+    }
+    #lightbox img { max-width: 100%; max-height: 100%; border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Food Log</h1>
+    <div class="sub">A daily photo log of breakfast, lunch, and dinner.</div>
+
+    <div id="authBar">
+      <span id="authStatus" class="sub" style="margin:0;"></span>
+      <button id="loginBtn">Login</button>
+      <button id="logoutBtn" style="display:none;">Logout</button>
+    </div>
+
+    <div id="days"></div>
+  </div>
+
+  <div id="lightbox"><img id="lightboxImg" src="" alt="" /></div>
+
+  <script type="module">
+    import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+    // --- Fill these in from your Supabase project settings (Project Settings -> API) ---
+    const SUPABASE_URL = "https://kskloplryakymwpfdomh.supabase.co";
+    const SUPABASE_ANON_KEY = "sb_publishable_Zm5CToJcnDr5_s456AovYg_v31dVAKS";
+    const BUCKET = "foodlog";
+
+    // First day the tracker started. Days from here through today are shown.
+    const START_DATE = "2026-07-13";
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const MEALS = ["breakfast", "lunch", "dinner"];
+    let isAuthed = false;
+
+    function dateKey(d) {
+      return d.toISOString().slice(0, 10);
+    }
+
+    function formatLabel(key) {
+      const d = new Date(key + "T00:00:00");
+      return d.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+    }
+
+    function listDaysFromStart() {
+      const start = new Date(START_DATE + "T00:00:00");
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const days = [];
+      for (let d = new Date(start); d <= today; d.setDate(d.getDate() + 1)) {
+        days.push(dateKey(d));
+      }
+      return days.reverse(); // most recent first
+    }
+
+    async function loadAllDayData() {
+      const { data, error } = await supabase.from("foodlog").select("*");
+      if (error) {
+        console.error(error);
+        return {};
+      }
+      const byDay = {};
+      for (const row of data) byDay[row.day] = row;
+      return byDay;
+    }
+
+    function mealSlotHTML(dayKey, meal, url) {
+      const label = meal.charAt(0).toUpperCase() + meal.slice(1);
+      const imgOrPlaceholder = url
+        ? `<img src="${url}" alt="${label} on ${dayKey}" data-full="${url}" />`
+        : `<div class="placeholder">No photo</div>`;
+      const uploadControl = (!url && isAuthed)
+        ? `<label class="upload-btn">Upload
+             <input type="file" accept="image/*" data-day="${dayKey}" data-meal="${meal}" />
+           </label>`
+        : "";
+      return `
+        <div class="meal" data-day="${dayKey}" data-meal="${meal}">
+          <h4>${label}</h4>
+          ${imgOrPlaceholder}
+          ${uploadControl}
+          <div class="status"></div>
+        </div>`;
+    }
+
+    async function renderDays() {
+      const daysEl = document.getElementById("days");
+      const keys = listDaysFromStart();
+      daysEl.innerHTML = keys.map(k => `
+        <details class="day" ${k === keys[0] ? "open" : ""} data-day="${k}">
+          <summary>
+            <span>${formatLabel(k)}</span>
+            <span class="day-meta"><span class="arrow">▶</span></span>
+          </summary>
+          <div class="meals" id="meals-${k}"><div class="sub" style="padding:12px 16px;">Loading…</div></div>
+        </details>
+      `).join("");
+
+      const byDay = await loadAllDayData();
+      for (const k of keys) {
+        const row = byDay[k] || {};
+        const mealsEl = document.getElementById(`meals-${k}`);
+        mealsEl.innerHTML = MEALS.map(m => mealSlotHTML(k, m, row[m])).join("");
+      }
+      attachHandlers();
+    }
+
+    function attachHandlers() {
+      document.querySelectorAll('.meal img').forEach(img => {
+        img.addEventListener('click', () => {
+          document.getElementById('lightboxImg').src = img.dataset.full;
+          document.getElementById('lightbox').style.display = 'flex';
+        });
+      });
+      document.querySelectorAll('.meal input[type="file"]').forEach(input => {
+        input.addEventListener('change', handleUpload);
+      });
+    }
+
+    async function handleUpload(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const { day, meal } = e.target.dataset;
+      const mealDiv = document.querySelector(`.meal[data-day="${day}"][data-meal="${meal}"]`);
+      const statusEl = mealDiv.querySelector('.status');
+      statusEl.textContent = "Uploading…";
+      try {
+        const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+        const path = `${day}/${meal}.${ext}`;
+        const { error: uploadError } = await supabase.storage
+          .from(BUCKET)
+          .upload(path, file, { upsert: true, contentType: file.type });
+        if (uploadError) throw uploadError;
+
+        const { data: pub } = supabase.storage.from(BUCKET).getPublicUrl(path);
+        const url = `${pub.publicUrl}?t=${Date.now()}`; // cache-bust on re-upload
+
+        const { error: dbError } = await supabase
+          .from("foodlog")
+          .upsert({ day, [meal]: url }, { onConflict: "day" });
+        if (dbError) throw dbError;
+
+        mealDiv.innerHTML = `
+          <h4>${meal.charAt(0).toUpperCase() + meal.slice(1)}</h4>
+          <img src="${url}" alt="${meal} on ${day}" data-full="${url}" />
+          <div class="status"></div>`;
+        attachHandlers();
+      } catch (err) {
+        statusEl.textContent = "Upload failed";
+        console.error(err);
+      }
+    }
+
+    document.getElementById('lightbox').addEventListener('click', () => {
+      document.getElementById('lightbox').style.display = 'none';
+    });
+
+    // --- Auth ---
+    const loginBtn = document.getElementById('loginBtn');
+    const logoutBtn = document.getElementById('logoutBtn');
+    const authStatus = document.getElementById('authStatus');
+
+    loginBtn.addEventListener('click', async () => {
+      const email = prompt("Email:");
+      if (!email) return;
+      const password = prompt("Password:");
+      if (!password) return;
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) alert("Login failed: " + error.message);
+    });
+
+    logoutBtn.addEventListener('click', () => supabase.auth.signOut());
+
+    supabase.auth.onAuthStateChange((_event, session) => {
+      isAuthed = !!session;
+      loginBtn.style.display = isAuthed ? "none" : "inline-block";
+      logoutBtn.style.display = isAuthed ? "inline-block" : "none";
+      authStatus.textContent = isAuthed ? `Signed in as ${session.user.email}` : "";
+      renderDays();
+    });
+  </script>
+</body>
+</html>
