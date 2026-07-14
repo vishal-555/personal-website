@@ -44,16 +44,17 @@
       margin-bottom: 16px;
       font-size: 0.85rem;
     }
-    #authBar button, #authBar input {
-      font-size: 0.85rem;
-      padding: 6px 10px;
-      border-radius: 6px;
-      border: 1px solid var(--border);
-      background: var(--card);
-      color: var(--text);
+    #authBar button {
+      font-size: 0.8rem;
+      padding: 2px 4px;
+      border: none;
+      background: none;
+      color: var(--muted);
+      cursor: pointer;
+      text-decoration: underline;
+      text-underline-offset: 2px;
     }
-    #authBar button { cursor: pointer; }
-    #authBar button:hover { border-color: var(--accent); }
+    #authBar button:hover { color: var(--accent); }
 
     details.day {
       background: var(--card);
@@ -90,11 +91,28 @@
       .meals { grid-template-columns: 1fr; }
     }
     .meal {
+      position: relative;
       border: 1px dashed var(--border);
       border-radius: 8px;
       padding: 10px;
       text-align: center;
     }
+    .meal .delete-btn {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      width: 20px;
+      height: 20px;
+      line-height: 20px;
+      border-radius: 50%;
+      background: rgba(0,0,0,0.55);
+      color: #fff;
+      font-size: 0.75rem;
+      cursor: pointer;
+      border: none;
+      z-index: 1;
+    }
+    .meal .delete-btn:hover { background: #c0392b; }
     .meal h4 {
       margin: 0 0 8px;
       font-size: 0.8rem;
@@ -120,14 +138,29 @@
       border-radius: 6px;
       background: color-mix(in srgb, var(--border) 40%, transparent);
     }
+    .meal .upload-row {
+      display: flex;
+      gap: 6px;
+      justify-content: center;
+      margin-top: 8px;
+    }
     .meal label.upload-btn {
       display: inline-block;
-      margin-top: 8px;
       font-size: 0.75rem;
       padding: 5px 10px;
       border-radius: 6px;
       background: var(--accent);
       color: #fff;
+      cursor: pointer;
+    }
+    .meal button.camera-btn {
+      font-family: inherit;
+      background: transparent;
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      font-size: 0.75rem;
+      padding: 5px 10px;
+      border-radius: 6px;
       cursor: pointer;
     }
     .meal input[type="file"] { display: none; }
@@ -143,6 +176,38 @@
       padding: 24px;
     }
     #lightbox img { max-width: 100%; max-height: 100%; border-radius: 8px; }
+
+    #cameraModal {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.9);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 16px;
+      gap: 12px;
+    }
+    #cameraModal video {
+      max-width: 100%;
+      max-height: 70vh;
+      border-radius: 8px;
+    }
+    #cameraModal .camera-controls {
+      display: flex;
+      gap: 12px;
+    }
+    #cameraModal button {
+      font-family: inherit;
+      font-size: 0.9rem;
+      padding: 10px 20px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+    }
+    #cameraModal .snap-btn { background: var(--accent); color: #fff; }
+    #cameraModal .cancel-btn { background: #444; color: #fff; }
+    #cameraModal .camera-error { color: #eee; font-size: 0.85rem; max-width: 320px; text-align: center; }
   </style>
 </head>
 <body>
@@ -161,6 +226,15 @@
 
   <div id="lightbox"><img id="lightboxImg" src="" alt="" /></div>
 
+  <div id="cameraModal">
+    <video id="cameraVideo" autoplay playsinline muted></video>
+    <div id="cameraError" class="camera-error" style="display:none;"></div>
+    <div class="camera-controls">
+      <button class="snap-btn" id="snapBtn">Take Photo</button>
+      <button class="cancel-btn" id="cancelCameraBtn">Cancel</button>
+    </div>
+  </div>
+
   <script type="module">
     import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -178,7 +252,10 @@
     let isAuthed = false;
 
     function dateKey(d) {
-      return d.toISOString().slice(0, 10);
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
     }
 
     function formatLabel(key) {
@@ -208,23 +285,39 @@
       return byDay;
     }
 
-    function mealSlotHTML(dayKey, meal, url) {
+    function pathFromUrl(url) {
+      const marker = `/object/public/${BUCKET}/`;
+      const idx = url.indexOf(marker);
+      if (idx === -1) return null;
+      return url.slice(idx + marker.length).split('?')[0];
+    }
+
+    function mealSlotInnerHTML(dayKey, meal, url) {
       const label = meal.charAt(0).toUpperCase() + meal.slice(1);
       const imgOrPlaceholder = url
         ? `<img src="${url}" alt="${label} on ${dayKey}" data-full="${url}" />`
         : `<div class="placeholder">No photo</div>`;
+      const deleteControl = (url && isAuthed)
+        ? `<button class="delete-btn" data-day="${dayKey}" data-meal="${meal}" title="Delete photo">✕</button>`
+        : "";
       const uploadControl = (!url && isAuthed)
-        ? `<label class="upload-btn">Upload
-             <input type="file" accept="image/*" data-day="${dayKey}" data-meal="${meal}" />
-           </label>`
+        ? `<div class="upload-row">
+             <label class="upload-btn">Upload
+               <input type="file" accept="image/*" data-day="${dayKey}" data-meal="${meal}" />
+             </label>
+             <button type="button" class="camera-btn" data-day="${dayKey}" data-meal="${meal}">Camera</button>
+           </div>`
         : "";
       return `
-        <div class="meal" data-day="${dayKey}" data-meal="${meal}">
-          <h4>${label}</h4>
-          ${imgOrPlaceholder}
-          ${uploadControl}
-          <div class="status"></div>
-        </div>`;
+        ${deleteControl}
+        <h4>${label}</h4>
+        ${imgOrPlaceholder}
+        ${uploadControl}
+        <div class="status"></div>`;
+    }
+
+    function mealSlotHTML(dayKey, meal, url) {
+      return `<div class="meal" data-day="${dayKey}" data-meal="${meal}">${mealSlotInnerHTML(dayKey, meal, url)}</div>`;
     }
 
     async function renderDays() {
@@ -259,21 +352,36 @@
       document.querySelectorAll('.meal input[type="file"]').forEach(input => {
         input.addEventListener('change', handleUpload);
       });
+      document.querySelectorAll('.meal .delete-btn').forEach(btn => {
+        btn.addEventListener('click', handleDelete);
+      });
+      document.querySelectorAll('.meal .camera-btn').forEach(btn => {
+        btn.addEventListener('click', () => openCamera(btn.dataset.day, btn.dataset.meal));
+      });
+    }
+
+    function renderMealSlot(mealDiv, dayKey, meal, url) {
+      mealDiv.innerHTML = mealSlotInnerHTML(dayKey, meal, url);
+      attachHandlers();
     }
 
     async function handleUpload(e) {
       const file = e.target.files[0];
       if (!file) return;
       const { day, meal } = e.target.dataset;
+      await uploadFile(day, meal, file);
+    }
+
+    async function uploadFile(day, meal, file) {
       const mealDiv = document.querySelector(`.meal[data-day="${day}"][data-meal="${meal}"]`);
       const statusEl = mealDiv.querySelector('.status');
       statusEl.textContent = "Uploading…";
       try {
-        const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+        const ext = (file.name && file.name.includes('.')) ? file.name.split('.').pop().toLowerCase() : 'jpg';
         const path = `${day}/${meal}.${ext}`;
         const { error: uploadError } = await supabase.storage
           .from(BUCKET)
-          .upload(path, file, { upsert: true, contentType: file.type });
+          .upload(path, file, { upsert: true, contentType: file.type || 'image/jpeg' });
         if (uploadError) throw uploadError;
 
         const { data: pub } = supabase.storage.from(BUCKET).getPublicUrl(path);
@@ -284,13 +392,92 @@
           .upsert({ day, [meal]: url }, { onConflict: "day" });
         if (dbError) throw dbError;
 
-        mealDiv.innerHTML = `
-          <h4>${meal.charAt(0).toUpperCase() + meal.slice(1)}</h4>
-          <img src="${url}" alt="${meal} on ${day}" data-full="${url}" />
-          <div class="status"></div>`;
-        attachHandlers();
+        renderMealSlot(mealDiv, day, meal, url);
       } catch (err) {
         statusEl.textContent = "Upload failed";
+        console.error(err);
+      }
+    }
+
+    // --- Camera capture ---
+    const cameraModal = document.getElementById('cameraModal');
+    const cameraVideo = document.getElementById('cameraVideo');
+    const cameraError = document.getElementById('cameraError');
+    const snapBtn = document.getElementById('snapBtn');
+    const cancelCameraBtn = document.getElementById('cancelCameraBtn');
+    let activeStream = null;
+    let pendingShot = null; // { day, meal }
+
+    async function openCamera(day, meal) {
+      pendingShot = { day, meal };
+      cameraError.style.display = 'none';
+      snapBtn.style.display = 'inline-block';
+      cameraVideo.style.display = 'block';
+      cameraModal.style.display = 'flex';
+      try {
+        activeStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment' }
+        });
+        cameraVideo.srcObject = activeStream;
+      } catch (err) {
+        console.error(err);
+        cameraVideo.style.display = 'none';
+        snapBtn.style.display = 'none';
+        cameraError.style.display = 'block';
+        cameraError.textContent = "Couldn't access the camera (permission denied or unavailable). Use Upload instead.";
+      }
+    }
+
+    function closeCamera() {
+      if (activeStream) {
+        activeStream.getTracks().forEach(t => t.stop());
+        activeStream = null;
+      }
+      cameraModal.style.display = 'none';
+      pendingShot = null;
+    }
+
+    snapBtn.addEventListener('click', () => {
+      if (!pendingShot || !activeStream) return;
+      const { day, meal } = pendingShot;
+      const canvas = document.createElement('canvas');
+      canvas.width = cameraVideo.videoWidth;
+      canvas.height = cameraVideo.videoHeight;
+      canvas.getContext('2d').drawImage(cameraVideo, 0, 0);
+      canvas.toBlob(async (blob) => {
+        if (!blob) return;
+        const file = new File([blob], `${meal}.jpg`, { type: 'image/jpeg' });
+        closeCamera();
+        await uploadFile(day, meal, file);
+      }, 'image/jpeg', 0.85);
+    });
+
+    cancelCameraBtn.addEventListener('click', closeCamera);
+
+    async function handleDelete(e) {
+      e.stopPropagation();
+      const { day, meal } = e.target.dataset;
+      if (!confirm(`Delete the ${meal} photo for ${formatLabel(day)}?`)) return;
+
+      const mealDiv = document.querySelector(`.meal[data-day="${day}"][data-meal="${meal}"]`);
+      const img = mealDiv.querySelector('img');
+      const statusEl = mealDiv.querySelector('.status');
+      statusEl.textContent = "Deleting…";
+      try {
+        const path = pathFromUrl(img.dataset.full);
+        if (path) {
+          const { error: removeError } = await supabase.storage.from(BUCKET).remove([path]);
+          if (removeError) throw removeError;
+        }
+        const { error: dbError } = await supabase
+          .from("foodlog")
+          .update({ [meal]: null })
+          .eq("day", day);
+        if (dbError) throw dbError;
+
+        renderMealSlot(mealDiv, day, meal, null);
+      } catch (err) {
+        statusEl.textContent = "Delete failed";
         console.error(err);
       }
     }
