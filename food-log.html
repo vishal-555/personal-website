@@ -274,15 +274,13 @@
       return days.reverse(); // most recent first
     }
 
-    async function loadAllDayData() {
-      const { data, error } = await supabase.from("foodlog").select("*");
+    async function loadDayData(key) {
+      const { data, error } = await supabase.from("foodlog").select("*").eq("day", key).maybeSingle();
       if (error) {
         console.error(error);
         return {};
       }
-      const byDay = {};
-      for (const row of data) byDay[row.day] = row;
-      return byDay;
+      return data || {};
     }
 
     function pathFromUrl(url) {
@@ -295,7 +293,7 @@
     function mealSlotInnerHTML(dayKey, meal, url) {
       const label = meal.charAt(0).toUpperCase() + meal.slice(1);
       const imgOrPlaceholder = url
-        ? `<img src="${url}" alt="${label} on ${dayKey}" data-full="${url}" />`
+        ? `<img src="${url}" alt="${label} on ${dayKey}" data-full="${url}" loading="lazy" />`
         : `<div class="placeholder">No photo</div>`;
       const deleteControl = (url && isAuthed)
         ? `<button class="delete-btn" data-day="${dayKey}" data-meal="${meal}" title="Delete photo">✕</button>`
@@ -324,7 +322,7 @@
       const daysEl = document.getElementById("days");
       const keys = listDaysFromStart();
       daysEl.innerHTML = keys.map(k => `
-        <details class="day" ${k === keys[0] ? "open" : ""} data-day="${k}">
+        <details class="day" ${k === keys[0] ? "open" : ""} data-day="${k}" data-loaded="false">
           <summary>
             <span>${formatLabel(k)}</span>
             <span class="day-meta"><span class="arrow">▶</span></span>
@@ -333,36 +331,53 @@
         </details>
       `).join("");
 
-      const byDay = await loadAllDayData();
-      for (const k of keys) {
-        const row = byDay[k] || {};
-        const mealsEl = document.getElementById(`meals-${k}`);
-        mealsEl.innerHTML = MEALS.map(m => mealSlotHTML(k, m, row[m])).join("");
-      }
-      attachHandlers();
+      document.querySelectorAll('details.day').forEach(det => {
+        det.addEventListener('toggle', onDayToggle);
+      });
+
+      // Only the initially-open (most recent) day loads eagerly; the rest
+      // load on demand when expanded, so collapsed days never fetch photos.
+      if (keys.length) await loadDay(keys[0]);
     }
 
-    function attachHandlers() {
-      document.querySelectorAll('.meal img').forEach(img => {
+    async function onDayToggle(e) {
+      const det = e.currentTarget;
+      if (det.open && det.dataset.loaded !== "true") {
+        await loadDay(det.dataset.day);
+      }
+    }
+
+    async function loadDay(key) {
+      const det = document.querySelector(`details.day[data-day="${key}"]`);
+      if (!det || det.dataset.loaded === "true") return;
+      det.dataset.loaded = "true";
+      const row = await loadDayData(key);
+      const mealsEl = document.getElementById(`meals-${key}`);
+      mealsEl.innerHTML = MEALS.map(m => mealSlotHTML(key, m, row[m])).join("");
+      attachHandlers(mealsEl);
+    }
+
+    function attachHandlers(root = document) {
+      root.querySelectorAll('.meal img').forEach(img => {
         img.addEventListener('click', () => {
           document.getElementById('lightboxImg').src = img.dataset.full;
           document.getElementById('lightbox').style.display = 'flex';
         });
       });
-      document.querySelectorAll('.meal input[type="file"]').forEach(input => {
+      root.querySelectorAll('.meal input[type="file"]').forEach(input => {
         input.addEventListener('change', handleUpload);
       });
-      document.querySelectorAll('.meal .delete-btn').forEach(btn => {
+      root.querySelectorAll('.meal .delete-btn').forEach(btn => {
         btn.addEventListener('click', handleDelete);
       });
-      document.querySelectorAll('.meal .camera-btn').forEach(btn => {
+      root.querySelectorAll('.meal .camera-btn').forEach(btn => {
         btn.addEventListener('click', () => openCamera(btn.dataset.day, btn.dataset.meal));
       });
     }
 
     function renderMealSlot(mealDiv, dayKey, meal, url) {
       mealDiv.innerHTML = mealSlotInnerHTML(dayKey, meal, url);
-      attachHandlers();
+      attachHandlers(mealDiv);
     }
 
     async function handleUpload(e) {
@@ -372,16 +387,48 @@
       await uploadFile(day, meal, file);
     }
 
+    // Resizes + re-encodes an image so the site doesn't ship full
+    // camera-resolution files (often several MB) for a small thumbnail.
+    function compressImage(fileOrBlob, maxDim = 1280, quality = 0.75) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        const objectUrl = URL.createObjectURL(fileOrBlob);
+        img.onload = () => {
+          let { width, height } = img;
+          if (width > height && width > maxDim) {
+            height = Math.round(height * (maxDim / width));
+            width = maxDim;
+          } else if (height > maxDim) {
+            width = Math.round(width * (maxDim / height));
+            height = maxDim;
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+          URL.revokeObjectURL(objectUrl);
+          canvas.toBlob(
+            blob => blob ? resolve(blob) : reject(new Error('Compression produced no image')),
+            'image/jpeg',
+            quality
+          );
+        };
+        img.onerror = reject;
+        img.src = objectUrl;
+      });
+    }
+
     async function uploadFile(day, meal, file) {
       const mealDiv = document.querySelector(`.meal[data-day="${day}"][data-meal="${meal}"]`);
       const statusEl = mealDiv.querySelector('.status');
-      statusEl.textContent = "Uploading…";
+      statusEl.textContent = "Compressing…";
       try {
-        const ext = (file.name && file.name.includes('.')) ? file.name.split('.').pop().toLowerCase() : 'jpg';
-        const path = `${day}/${meal}.${ext}`;
+        const compressed = await compressImage(file);
+        const path = `${day}/${meal}.jpg`;
+        statusEl.textContent = "Uploading…";
         const { error: uploadError } = await supabase.storage
           .from(BUCKET)
-          .upload(path, file, { upsert: true, contentType: file.type || 'image/jpeg' });
+          .upload(path, compressed, { upsert: true, contentType: 'image/jpeg' });
         if (uploadError) throw uploadError;
 
         const { data: pub } = supabase.storage.from(BUCKET).getPublicUrl(path);

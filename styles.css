@@ -1,0 +1,48 @@
+body{
+    background-color:black;
+    color:white
+}
+img{
+    width:33%;
+    height:600px; /*height:auto;*/
+    object-fit: contain;
+    
+}
+
+.navigation_container{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+}
+
+nav {
+  display:flex;
+  gap: 24px; 
+}
+
+nav a.active{
+    text-decoration:underline;
+}
+
+nav a:hover{
+    color:#80EF80;
+
+}
+a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.profile_photo{
+    width: 200px;
+    height: auto;
+
+}
+
+.socials{
+    display:flex;
+    justify-content:center;
+    gap:16px;
+    margin-top:8px;
+}
+
