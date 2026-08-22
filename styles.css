@@ -46,3 +46,22 @@ a {
     margin-top:8px;
 }
 
+body {
+  margin: 0 auto;
+  padding: 1rem;
+  max-width: 42rem;
+}
+
+header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
