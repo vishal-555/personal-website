@@ -1,31 +1,35 @@
-<!Doctype html>
-
+<!DOCTYPE html>
+<html lang="en">
     <head>
         <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title> About me </title>
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+        <meta name="theme-color" content="#1230c4">
+        <title>Resume</title>
         <link rel="icon" type="image/png" href="/images/tree_icon_v2.png">
-         <link rel="stylesheet" href="styles.css">
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+        <link rel="stylesheet" href="styles.css">
     </head>
 
     <body>
-         
-        <div class="navigation_container">
-           <h2>Resume: Last updated April 2023 </h2>
-            <nav class="navbar">
-                <a href="index.html" > Home</a>
-                <a href="resume.html" class="active"> Resume</a>
-                <a href="about.html" > About</a>
-                <a href="blogs.html"  > Blogs</a>
-                <a href="photos.html" > Photos</a>  
-                    
-            </nav>
-        </div>
+        <div class="page wide">
+            <header class="navigation_container">
+                <a class="brand" href="index.html"><img src="/images/tree_icon_v2.png" alt=""> Vishal</a>
+                <nav>
+                    <a href="index.html">Home</a>
+                    <a href="resume.html" class="active">Resume</a>
+                    <a href="about.html">About</a>
+                    <a href="blogs.html">Blogs</a>
+                    <a href="photos.html">Photos</a>
+                </nav>
+            </header>
 
-        <embed src="files/Vishal_Waghmode_Resume.pdf" type="application/pdf" width="100%" height="1150px">
-        
-        
-      
-    
+            <main>
+                <h1>Resume.</h1>
+                <p class="lede">Last updated April 2023. <a href="files/Vishal_Waghmode_Resume.pdf" target="_blank">Download PDF</a></p>
+                <embed class="resume" src="files/Vishal_Waghmode_Resume.pdf" type="application/pdf">
+            </main>
+        </div>
     </body>
 </html>
