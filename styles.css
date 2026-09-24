@@ -1,67 +1,334 @@
-body{
-    background-color:black;
-    color:white
-}
-img{
-    width:33%;
-    height:600px; /*height:auto;*/
-    object-fit: contain;
-    
+:root {
+    --blue: #1230c4;
+    --text: #ffffff;
+    --muted: rgba(255, 255, 255, 0.72);
+    --line: rgba(255, 255, 255, 0.28);
+    --green: #3ddc84;
 }
 
-.navigation_container{
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
+* {
+    box-sizing: border-box;
 }
 
-nav {
-  display:flex;
-  gap: 24px; 
+html {
+    background: var(--blue);
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
 }
 
-nav a.active{
-    text-decoration:underline;
+body {
+    margin: 0;
+    min-height: 100vh;
+    min-height: 100dvh;
+    font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    color: var(--text);
+    background: transparent;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    /* keeps text readable when it scrolls over the clouds */
+    text-shadow: 0 1px 2px rgba(10, 30, 140, 0.45), 0 0 18px rgba(10, 30, 140, 0.4);
+    -webkit-tap-highlight-color: transparent;
 }
 
-nav a:hover{
-    color:#80EF80;
-
+/* fixed sky layer - works on iOS/Android where background-attachment: fixed doesn't.
+   100lvh = the tallest viewport, so the image doesn't jump when the mobile URL bar hides. */
+body::before,
+body::after {
+    content: "";
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100vh;
+    height: 100lvh;
+    z-index: -1;
+    pointer-events: none;
 }
+
+/* the blue wash sits behind the text column so white text stays readable over clouds */
+body::before {
+    background:
+        linear-gradient(90deg, rgba(18, 48, 196, 0.82) 0%, rgba(18, 48, 196, 0.6) 38%, rgba(18, 48, 196, 0) 62%),
+        url("/images/sky-wide.jpg") right bottom / cover no-repeat,
+        var(--blue);
+}
+
+/* diagonal print hatching in the top-left corner */
+body::after {
+    background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.07) 0 1px, transparent 1px 9px);
+    -webkit-mask-image: radial-gradient(ellipse 70% 55% at 0 0, #000 30%, transparent 100%);
+    mask-image: radial-gradient(ellipse 70% 55% at 0 0, #000 30%, transparent 100%);
+}
+
+/* portrait phones and tablets get a tall composition */
+@media (max-aspect-ratio: 4/5) {
+    body::before {
+        background:
+            linear-gradient(180deg, rgba(18, 48, 196, 0) 25%, rgba(18, 48, 196, 0.55) 55%, rgba(18, 48, 196, 0.6) 100%),
+            url("/images/sky-tall.jpg") right bottom / cover no-repeat,
+            var(--blue);
+    }
+}
+
 a {
     color: inherit;
     text-decoration: none;
 }
 
-.profile_photo{
-    width: 200px;
-    height: auto;
-
+.page {
+    max-width: 40rem;
+    margin-left: max(clamp(16px, 8vw, 9rem), env(safe-area-inset-left));
+    margin-right: max(16px, env(safe-area-inset-right));
+    padding: max(2.5rem, env(safe-area-inset-top)) 0 max(3rem, env(safe-area-inset-bottom));
 }
 
-.socials{
-    display:flex;
-    justify-content:center;
-    gap:16px;
-    margin-top:8px;
+/* header */
+.navigation_container {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 3.5rem;
 }
 
-body {
-  margin: 0 auto;
-  padding: 1rem;
-  max-width: 42rem;
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
+    font-size: 0.95rem;
 }
 
-header {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  align-items: baseline;
-  justify-content: space-between;
+.brand img {
+    width: 22px;
+    height: 22px;
+    padding: 3px;
+    border-radius: 6px;
+    background: var(--green);
 }
 
 nav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.25rem;
+    font-size: 0.9rem;
+}
+
+nav a {
+    color: var(--muted);
+    padding: 0.5rem 0; /* bigger tap target */
+}
+
+nav a.active {
+    color: var(--text);
+    text-decoration: underline;
+    text-underline-offset: 4px;
+}
+
+@media (hover: hover) {
+    nav a:hover {
+        color: var(--green);
+    }
+}
+
+/* type */
+h1 {
+    font-size: clamp(1.8rem, 5vw, 2.4rem);
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    line-height: 1.12;
+    margin: 0 0 0.75rem;
+}
+
+.lede {
+    color: var(--muted);
+    margin: 0 0 2.5rem;
+    max-width: 30rem;
+}
+
+p {
+    margin: 0 0 1rem;
+}
+
+p a,
+.socials a {
+    text-decoration: underline;
+    text-decoration-color: var(--line);
+    text-underline-offset: 3px;
+}
+
+@media (hover: hover) {
+    p a:hover,
+    .socials a:hover,
+    summary:hover {
+        color: var(--green);
+    }
+}
+
+.profile_photo {
+    display: block;
+    width: 72px;
+    height: 72px;
+    object-fit: cover;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.85);
+    margin-bottom: 1.5rem;
+}
+
+/* stat grid, like the "Incoming / Expenses" rows */
+.stats {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.5rem 2rem;
+    margin: 0 0 2.5rem;
+    max-width: 30rem;
+}
+
+.stats dt {
+    font-size: 0.8rem;
+    color: var(--muted);
+}
+
+.stats dd {
+    margin: 0;
+    font-size: 1.6rem;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+}
+
+/* hatched bar */
+.bar {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    max-width: 30rem;
+    height: 44px;
+    border: 1px solid rgba(255, 255, 255, 0.9);
+    border-radius: 4px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.95);
+}
+
+.bar span {
+    border-right: 1px solid rgba(255, 255, 255, 0.9);
+}
+
+.bar span:nth-child(1) { background: repeating-linear-gradient(45deg, #5a5f73 0 2px, #9aa0b5 2px 5px); }
+.bar span:nth-child(2) { background: repeating-linear-gradient(90deg, #7d8296 0 1px, #d8dbe6 1px 5px); }
+.bar span:nth-child(3) { background: repeating-linear-gradient(90deg, #b8bccb 0 1px, #f2f3f7 1px 8px); }
+.bar span:nth-child(4) { background: #fff; border-right: 0; }
+
+.bar-labels {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    max-width: 30rem;
+    margin: 0.4rem 0 2.5rem;
+    font-size: 0.72rem;
+    color: var(--muted);
+}
+
+.details {
+    color: var(--muted);
+    font-size: 0.95rem;
+    max-width: 32rem;
+}
+
+/* blogs */
+details {
+    border-top: 1px solid var(--line);
+    padding: 1rem 0;
+}
+
+details:last-of-type {
+    border-bottom: 1px solid var(--line);
+}
+
+summary {
+    cursor: pointer;
+    font-weight: 600;
+    padding: 0.25rem 0;
+}
+
+
+details[open] summary {
+    margin-bottom: 0.75rem;
+}
+
+details ul {
+    margin: 0 0 0.5rem;
+    padding-left: 1.2rem;
+}
+
+/* photos */
+.gallery {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 10px;
+}
+
+.gallery img {
+    width: 100%;
+    aspect-ratio: 3 / 4;
+    object-fit: cover;
+    border-radius: 6px;
+    display: block;
+}
+
+.page.wide {
+    max-width: 60rem;
+}
+
+iframe {
+    max-width: 100%;
+    margin-bottom: 1.5rem;
+}
+
+footer {
+    margin-top: 3rem;
+    font-size: 0.85rem;
+    color: var(--muted);
+}
+
+.socials {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.25rem;
+}
+
+.socials a {
+    padding: 0.4rem 0;
+}
+
+/* large desktop monitors */
+@media (min-width: 1600px) {
+    html {
+        font-size: 18px;
+    }
+}
+
+@media (max-width: 480px) {
+    .navigation_container {
+        margin-bottom: 2.5rem;
+    }
+    .stats dd {
+        font-size: 1.35rem;
+    }
+    .gallery {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+    }
+}
+
+/* small phones (iPhone SE, compact Androids) */
+@media (max-width: 360px) {
+    nav {
+        gap: 1rem;
+        font-size: 0.85rem;
+    }
+    .stats {
+        gap: 1.25rem 1rem;
+    }
+    .bar-labels {
+        font-size: 0.65rem;
+    }
 }
